@@ -1,0 +1,31 @@
+From dd4f9ed61469645093e3e11f129ffe6f41acb411 Mon Sep 17 00:00:00 2001
+From: fanjie <fanjie@uniontech.com>
+Date: Tue, 19 Nov 2024 13:35:22 +0800
+Subject: [PATCH 05/12] fs/pstore: Make ramoops built-in
+
+Ramoops need to be built-in, as uos-ste-eventd depends on it
+
+https://pms.uniontech.com/bug-view-287235.html
+
+Signed-off-by: Fan Jie <fanjie@uniontech.com>
+Change-Id: I32884c7cf0da475c55a983890a29edbf3e9576f9
+---
+ arch/x86/configs/x86_desktop_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/configs/x86_desktop_defconfig b/arch/x86/configs/x86_desktop_defconfig
+index 133e91f58f9b..b55b639b9bef 100644
+--- a/arch/x86/configs/x86_desktop_defconfig
++++ b/arch/x86/configs/x86_desktop_defconfig
+@@ -3096,7 +3096,7 @@ CONFIG_QNX4FS_FS=m
+ CONFIG_QNX6FS_FS=m
+ CONFIG_ROMFS_FS=m
+ CONFIG_ROMFS_BACKED_BY_BOTH=y
+-CONFIG_PSTORE_RAM=m
++CONFIG_PSTORE_RAM=y
+ CONFIG_SYSV_FS=m
+ CONFIG_UFS_FS=m
+ CONFIG_EXOFS_FS=m
+-- 
+2.45.2
+
