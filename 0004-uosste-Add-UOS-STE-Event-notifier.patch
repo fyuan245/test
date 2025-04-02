@@ -1,0 +1,158 @@
+From 37ba92719ebf85972d1565e8d7c36e3015dfdf22 Mon Sep 17 00:00:00 2001
+From: fanjie <fanjie@uniontech.com>
+Date: Tue, 5 Nov 2024 15:07:30 +0800
+Subject: [PATCH 04/12] uosste: Add UOS STE Event notifier
+
+This module will report those events that uos ste concerned.
+Use keyboard_notifier to capture some key events,
+and add debugfs triggers to mock some runtime events
+
+Signed-off-by: Fan Jie <fanjie@uniontech.com>
+Change-Id: Icda783bed20d9acff1e9f8104a9962f16fcc8c6a
+---
+ kernel/uosste/Kconfig  |   7 +++
+ kernel/uosste/Makefile |   6 ++-
+ kernel/uosste/event.c  | 101 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 113 insertions(+), 1 deletion(-)
+ create mode 100644 kernel/uosste/event.c
+
+diff --git a/kernel/uosste/Kconfig b/kernel/uosste/Kconfig
+index 85ed5d189601..da8ade1a7080 100644
+--- a/kernel/uosste/Kconfig
++++ b/kernel/uosste/Kconfig
+@@ -18,4 +18,11 @@ config UOS_RAMOOPS
+ 		This enables UOS STE collecting log
+ 		with ramoops to UOS STE Reserved Memory
+ 
++config UOS_EVENT
++	bool "Enable UOS STE Event"
++	default y
++	select UOSSTE
++	help
++		Report those events that UOS STE concerned
++
+ endmenu
+diff --git a/kernel/uosste/Makefile b/kernel/uosste/Makefile
+index 53d88b84bfdf..1084074b1bcc 100644
+--- a/kernel/uosste/Makefile
++++ b/kernel/uosste/Makefile
+@@ -3,4 +3,8 @@
+ # Makefile for UOS STE modules.
+ #
+ 
+-obj-$(CONFIG_UOS_RESERVE) += reserve.o
++uosste_reserve-objs += reserve.o
++obj-$(CONFIG_UOS_RESERVE) += uosste_reserve.o
++
++uosste_event-objs += event.o
++obj-$(CONFIG_UOS_EVENT) += uosste_event.o
+diff --git a/kernel/uosste/event.c b/kernel/uosste/event.c
+new file mode 100644
+index 000000000000..0ec79aefa98e
+--- /dev/null
++++ b/kernel/uosste/event.c
+@@ -0,0 +1,101 @@
++#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/debugfs.h>
++#include <linux/keyboard.h>
++#include <linux/notifier.h>
++#include <linux/slab.h>
++#include <linux/string.h>
++#include <linux/uaccess.h>
++#include <linux/workqueue.h>
++#include <uapi/linux/input-event-codes.h>
++#include <uapi/linux/kd.h>
++
++MODULE_DESCRIPTION("UOS STE EVENT");
++MODULE_AUTHOR("Fan Jie");
++MODULE_LICENSE("GPL");
++
++#define EVENT_POWERKEY 0b001
++
++struct uos_ste_event_work {
++	struct work_struct work;
++	int event_type;
++};
++
++static void uos_ste_event_work_func(struct work_struct *work)
++{
++	struct uos_ste_event_work *event_work = container_of(work, struct uos_ste_event_work, work);
++	switch (event_work->event_type) {
++		case EVENT_POWERKEY:
++			pr_warn("powerkey pressed");
++			break;
++		default:
++			break;
++	}
++	kfree(event_work);
++}
++
++static int in_keyboard_notifier;
++
++static int keyboard_notifier_call(struct notifier_block *nb,
++                                  unsigned long code, void *_param);
++
++static struct notifier_block keyboard_notifier_block = {
++	.notifier_call = keyboard_notifier_call,
++	.priority = 100,
++};
++
++static int keyboard_notifier_call(struct notifier_block *nb,
++                                  unsigned long code, void *_param)
++{
++	struct keyboard_notifier_param *param = _param;
++	int ret = NOTIFY_OK;
++	static int keycode;
++
++	in_keyboard_notifier = 1;
++
++	switch (code) {
++	case KBD_KEYCODE:
++		keycode = param->value;
++		if (keycode == KEY_POWER && param->down) {
++			struct uos_ste_event_work *work = kmalloc(sizeof(struct uos_ste_event_work), GFP_ATOMIC);
++			if (work) {
++				work->event_type = EVENT_POWERKEY;
++				INIT_WORK(&work->work, uos_ste_event_work_func);
++				queue_work(system_unbound_wq, &work->work);
++			}
++		}
++		break;
++	case KBD_UNBOUND_KEYCODE:
++		/* not used yet */
++		break;
++	case KBD_UNICODE:
++		/* not used yet */
++		break;
++	case KBD_KEYSYM:
++		/* not used yet */
++		break;
++	case KBD_POST_KEYSYM:
++		/* not used yet */
++		break;
++	}
++out:
++	in_keyboard_notifier = 0;
++	return ret;
++}
++
++static int uosste_event_init(void)
++{
++	register_keyboard_notifier(&keyboard_notifier_block);
++	return 0;
++}
++
++static void uosste_event_exit(void)
++{
++	unregister_keyboard_notifier(&keyboard_notifier_block);
++}
++
++module_init(uosste_event_init);
++module_exit(uosste_event_exit);
+-- 
+2.45.2
+
