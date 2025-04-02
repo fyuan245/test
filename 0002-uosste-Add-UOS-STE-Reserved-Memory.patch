@@ -1,0 +1,147 @@
+From 200f8dc1d38c150f900ac436ca5af89fcb1ab54d Mon Sep 17 00:00:00 2001
+From: Fan Jie <fanjie@uniontech.com>
+Date: Mon, 4 Nov 2024 15:49:34 +0800
+Subject: [PATCH 02/12] uosste: Add UOS STE Reserved Memory
+
+In order to reserve the same physical memory on soft reboots,
+add a method to find a region specified by uos_reserve_mem=size
+for UOS STE Reserve Memory.
+
+Signed-off-by: Fan Jie <fanjie@uniontech.com>
+Change-Id: I0998933b5f78de1b3fc4d6b5f4a2b7dea04f9b05
+---
+ init/Kconfig            |  2 ++
+ kernel/Makefile         |  2 ++
+ kernel/uosste/Kconfig   | 21 +++++++++++++++++
+ kernel/uosste/Makefile  |  6 +++++
+ kernel/uosste/reserve.c | 51 +++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 82 insertions(+)
+ create mode 100644 kernel/uosste/Kconfig
+ create mode 100644 kernel/uosste/Makefile
+ create mode 100644 kernel/uosste/reserve.c
+
+diff --git a/init/Kconfig b/init/Kconfig
+index 47035b5a46f6..bdaeb97c0f66 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1760,6 +1760,8 @@ config PROFILING
+ config TRACEPOINTS
+ 	bool
+ 
++source "kernel/uosste/Kconfig"
++
+ endmenu		# General setup
+ 
+ source "arch/Kconfig"
+diff --git a/kernel/Makefile b/kernel/Makefile
+index ad4b324d8906..8189496bc10e 100644
+--- a/kernel/Makefile
++++ b/kernel/Makefile
+@@ -115,6 +115,8 @@ obj-$(CONFIG_HAS_IOMEM) += iomem.o
+ obj-$(CONFIG_ZONE_DEVICE) += memremap.o
+ obj-$(CONFIG_RSEQ) += rseq.o
+ 
++obj-$(CONFIG_UOSSTE) += uosste/
++
+ $(obj)/configs.o: $(obj)/config_data.h
+ 
+ targets += config_data.gz
+diff --git a/kernel/uosste/Kconfig b/kernel/uosste/Kconfig
+new file mode 100644
+index 000000000000..85ed5d189601
+--- /dev/null
++++ b/kernel/uosste/Kconfig
+@@ -0,0 +1,21 @@
++# SPDX-License-Identifier: GPL-2.0-only
++
++menu "UOS STE features"
++
++config UOSSTE
++	bool
++
++config UOS_RESERVE
++	bool
++
++config UOS_RAMOOPS
++	bool "Enable UOS STE Ramoops"
++	default y
++	depends on PSTORE_RAM
++	select UOSSTE
++	select UOS_RESERVE
++	help
++		This enables UOS STE collecting log
++		with ramoops to UOS STE Reserved Memory
++
++endmenu
+diff --git a/kernel/uosste/Makefile b/kernel/uosste/Makefile
+new file mode 100644
+index 000000000000..53d88b84bfdf
+--- /dev/null
++++ b/kernel/uosste/Makefile
+@@ -0,0 +1,6 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Makefile for UOS STE modules.
++#
++
++obj-$(CONFIG_UOS_RESERVE) += reserve.o
+diff --git a/kernel/uosste/reserve.c b/kernel/uosste/reserve.c
+new file mode 100644
+index 000000000000..7184fa8b67e8
+--- /dev/null
++++ b/kernel/uosste/reserve.c
+@@ -0,0 +1,51 @@
++#include <linux/kernel.h>
++#include <linux/err.h>
++#include <linux/module.h>
++#include <linux/version.h>
++#include <linux/kmemleak.h>
++#include <linux/memblock.h>
++#include <linux/mm.h>
++#include <linux/sizes.h>
++#include <linux/slab.h>
++
++
++#define MIN_MEM_SIZE SZ_1M
++#define MEM_ALIGN    SZ_4K
++
++struct resource uos_res = {
++	.name  = "UOS STE Reserve",
++	.start = 0,
++	.end   = 0,
++	.flags = IORESOURCE_BUSY | IORESOURCE_SYSTEM_RAM,
++	.desc  = IORES_DESC_PERSISTENT_MEMORY
++};
++EXPORT_SYMBOL(uos_res);
++
++static int __init uos_reserve_mem(char *p)
++{
++	phys_addr_t start, size;
++	char *oldp;
++
++	if (!p)
++		return -EINVAL;
++
++	oldp = p;
++	size = memparse(p, &p);
++	if (!size || p == oldp)
++		return -EINVAL;
++	if (size < MIN_MEM_SIZE)
++		size = MIN_MEM_SIZE;
++
++	start = memblock_alloc(size, MEM_ALIGN);
++	if (!start)
++		return -ENOMEM;
++
++	kmemleak_ignore_phys(start);
++
++	uos_res.start = start;
++	uos_res.end = start + size - 1;
++	insert_resource(&iomem_resource, &uos_res);
++
++	return 1;
++}
++__setup("uos_reserve_mem=", uos_reserve_mem);
+-- 
+2.45.2
+

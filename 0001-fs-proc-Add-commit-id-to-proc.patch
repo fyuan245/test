@@ -1,0 +1,56 @@
+From 456d659edf9aeb020ae92a1d4ee2f631d55fad5b Mon Sep 17 00:00:00 2001
+From: Fan Jie <fanjie@uniontech.com>
+Date: Mon, 4 Nov 2024 14:58:18 +0800
+Subject: [PATCH 01/12] fs/proc: Add commit id to /proc
+
+cat /proc/commitid will return the git commit id
+
+Signed-off-by: Fan Jie <fanjie@uniontech.com>
+Change-Id: I84985adffeed41cd90afea1e511a50ea562690b4
+---
+ fs/proc/Makefile   |  1 +
+ fs/proc/commitid.c | 20 ++++++++++++++++++++
+ 2 files changed, 21 insertions(+)
+ create mode 100644 fs/proc/commitid.c
+
+diff --git a/fs/proc/Makefile b/fs/proc/Makefile
+index ead487e80510..13903b9afd4e 100644
+--- a/fs/proc/Makefile
++++ b/fs/proc/Makefile
+@@ -13,6 +13,7 @@ proc-y       += inode.o root.o base.o generic.o array.o \
+ 		fd.o
+ proc-$(CONFIG_TTY)      += proc_tty.o
+ proc-y	+= cmdline.o
++proc-y	+= commitid.o
+ proc-y	+= consoles.o
+ proc-y	+= cpuinfo.o
+ proc-y	+= devices.o
+diff --git a/fs/proc/commitid.c b/fs/proc/commitid.c
+new file mode 100644
+index 000000000000..4a0c1d580d56
+--- /dev/null
++++ b/fs/proc/commitid.c
+@@ -0,0 +1,20 @@
++// SPDX-License-Identifier: GPL-2.0
++#include <generated/compile.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
++
++static int commitid_proc_show(struct seq_file *m, void *v)
++{
++	seq_printf(m, "%s\n", GIT_COMMITID);
++	return 0;
++}
++
++static int __init proc_commitid_init(void)
++{
++	proc_create_single("commitid", 0, NULL, commitid_proc_show);
++	return 0;
++}
++fs_initcall(proc_commitid_init);
+-- 
+2.45.2
+

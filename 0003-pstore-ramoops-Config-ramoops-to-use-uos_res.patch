@@ -1,0 +1,42 @@
+From 8288a618dd72d4c914457fa0efa41f34b1503a77 Mon Sep 17 00:00:00 2001
+From: Fan Jie <fanjie@uniontech.com>
+Date: Mon, 4 Nov 2024 15:54:19 +0800
+Subject: [PATCH 03/12] pstore/ramoops: Config ramoops to use uos_res
+
+When enable UOS_RAMOOPS, ramoops will init with the
+memory region reserved by UOS STE
+
+Signed-off-by: Fan Jie <fanjie@uniontech.com>
+Change-Id: Iefa0940b7c8d11beccc5db2f797b58ef36723af5
+---
+ fs/pstore/ram.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/fs/pstore/ram.c b/fs/pstore/ram.c
+index 215f5f86db71..5e7e6b9e51cd 100644
+--- a/fs/pstore/ram.c
++++ b/fs/pstore/ram.c
+@@ -924,8 +924,20 @@ static inline void ramoops_unregister_dummy(void)
+ 	dummy_data = NULL;
+ }
+ 
++#ifdef CONFIG_UOS_RAMOOPS
++#include <linux/ioport.h>
++extern struct resource uos_res;
++#endif
++
+ static void __init ramoops_register_dummy(void)
+ {
++#ifdef CONFIG_UOS_RAMOOPS
++	if (uos_res.end != uos_res.start) {
++		mem_address = uos_res.start;
++		mem_size = uos_res.end - uos_res.start + 1;
++	}
++#endif
++
+ 	/*
+ 	 * Prepare a dummy platform data structure to carry the module
+ 	 * parameters. If mem_size isn't set, then there are no module
+-- 
+2.45.2
+
